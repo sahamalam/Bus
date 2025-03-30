@@ -1,153 +1,67 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bus Details</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Available Buses</title>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDq8o_YDzi54BZPrl4ROpG-G6lOPQRO5wI",
+            authDomain: "buses-d3211.firebaseapp.com",
+            projectId: "buses-d3211",
+            storageBucket: "buses-d3211.firebasestorage.app",
+            messagingSenderId: "632536803918",
+            appId: "1:632536803918:web:a5f52e95c515ba5551311f",
+            measurementId: "G-SYS4MP9D2V"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        async function fetchBuses() {
+            const busDetailsContainer = document.getElementById('busDetailsContainer');
+            busDetailsContainer.innerHTML = '';
+
+            try {
+                const querySnapshot = await getDocs(collection(db, "buses"));
+                if (querySnapshot.empty) {
+                    busDetailsContainer.innerHTML = "<p>No buses available.</p>";
+                    return;
+                }
+
+                querySnapshot.forEach((doc) => {
+                    const bus = doc.data();
+                    const busCard = document.createElement('div');
+                    busCard.className = 'bus-card';
+                    busCard.innerHTML = `
+                        <h3>${bus.depo} - ${bus.busNumber}</h3>
+                        <p><strong>Route:</strong> ${bus.from} → ${bus.to} (Via ${bus.via})</p>
+                        <p><strong>Starts From:</strong> ${bus.startsFrom}</p>
+                        <p><strong>Fare:</strong> ₹${bus.fare}</p>
+                        <p><strong>Departure:</strong> ${bus.departureTime} → <strong>Arrival:</strong> ${bus.arrivalTime}</p>
+                        <p><strong>${bus.seatsLeft} Seats Left</strong></p>
+                        <p><strong>Type:</strong> ${bus.type} | <strong>Age:</strong> ${bus.busAge} Yr Old</p>
+                    `;
+                    busDetailsContainer.appendChild(busCard);
+                });
+            } catch (error) {
+                console.error("Error fetching buses:", error);
+                busDetailsContainer.innerHTML = "<p>Failed to load buses.</p>";
+            }
+        }
+
+        window.onload = fetchBuses;
+    </script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .bus-card { background: #fff; padding: 10px; margin: 10px 0; border-radius: 5px; box-shadow: 0 0 5px #ccc; }
+    </style>
 </head>
-<body class="bg-gray-100 p-4">
-  <div class="max-w-2xl mx-auto">
-    <div class="bg-white rounded-lg shadow p-4 mb-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center">
-          <img alt="UPSRTC logo" class="w-12 h-12 mr-4" src="https://upload.wikimedia.org/wikipedia/commons/8/8b/UPSRTC_Logo.png"/>
-          <div>
-            <h2 class="text-lg font-semibold">
-              AMETHI DEPO
-            </h2>
-            <p class="text-gray-600">
-              38 Buses, 1754 Seats Available
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div id="busDetailsContainer">
-      <!-- Bus details will be dynamically added here -->
-    </div>
-    <footer class="mt-4 text-center text-gray-600">
-      <p id="lastUpdated"></p>
-    </footer>
-  </div>
-  <script>
-    function calculateDuration(departureTime, arrivalTime) {
-      const [depHours, depMinutes] = departureTime.split(':').map(Number);
-      const [arrHours, arrMinutes] = arrivalTime.split(':').map(Number);
-
-      let durationHours = arrHours - depHours;
-      let durationMinutes = arrMinutes - depMinutes;
-
-      if (durationMinutes < 0) {
-        durationMinutes += 60;
-        durationHours -= 1;
-      }
-
-      if (durationHours < 0) {
-        durationHours += 24;
-      }
-
-      return `${durationHours}h ${durationMinutes}m`;
-    }
-
-    function formatTime(time) {
-      const [hours, minutes] = time.split(':').map(Number);
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const formattedHours = hours % 12 || 12;
-      return `${formattedHours}:${minutes < 10 ? '0' : ''}${minutes} ${ampm}`;
-    }
-
-    function fetchBuses() {
-  fetch("https://script.google.com/macros/s/AKfycbzvs0kIQ9eG75Z8n7Tjk0zB9adBjJysEGZXM10P2ekPChRePvM4C0ygew42u6Dx19K0Ww/exec") // Replace with your Web App URL
-    .then(response => response.json())
-    .then(buses => {
-      const busDetailsContainer = document.getElementById('busDetailsContainer');
-      busDetailsContainer.innerHTML = '';
-
-      buses.forEach(bus => {
-        const seatsLeftClass = bus.seatsLeft < 10 ? 'bg-red-200 text-red-800' : bus.seatsLeft < 20 ? 'bg-purple-200 text-purple-800' : 'bg-green-200 text-green-800';
-        const duration = calculateDuration(bus.departureTime, bus.arrivalTime);
-        const formattedDepartureTime = formatTime(bus.departureTime);
-        const formattedArrivalTime = formatTime(bus.arrivalTime);
-
-        const busCard = document.createElement('div');
-        busCard.className = 'bg-white rounded-lg shadow p-4 mb-4';
-        busCard.innerHTML = `
-          <div class="flex flex-col sm:flex-row items-center justify-between mb-1">
-            <div class="flex items-center mb-1 sm:mb-0">
-              <span class="bg-${bus.type === 'Normal' ? 'gray' : bus.type === 'Premium' ? 'blue' : 'green'}-500 text-white text-xs font-semibold px-2 py-1 rounded mr-1">
-                ${bus.type}
-              </span>
-              <h2 class="text-lg font-semibold">
-                ${bus.depo}
-              </h2>
-            </div>
-            <div class="text-right">
-              <span class="bg-yellow-400 text-white text-xs font-semibold px-2 py-1 rounded">
-                ${bus.busNumber}
-              </span>
-            </div>
-          </div>
-          <p class="text-gray-600 mb-1">
-            <strong>${bus.from}</strong> to <strong>${bus.to}</strong> Via ${bus.via}
-            <br/>
-            Starts from ${bus.startsFrom}
-          </p>
-          <div class="flex flex-col sm:flex-row items-center justify-between mb-1">
-            <div class="flex items-center mb-1 sm:mb-0">
-              <span class="text-lg font-semibold">
-                ${formattedDepartureTime}
-              </span>
-              <span class="text-gray-400 mx-1">
-                ${duration}
-              </span>
-              <span class="text-lg font-semibold">
-                ${formattedArrivalTime}
-              </span>
-            </div>
-            <p class="text-black font-semibold">
-              ₹${bus.fare}
-            </p>
-          </div>
-          <div class="flex flex-col sm:flex-row items-center justify-between mb-1">
-            <span class="${seatsLeftClass} text-sm font-semibold px-2 py-1 rounded mb-1 sm:mb-0">
-              ${bus.seatsLeft} Seats Left
-            </span>
-            <span class="bg-blue-100 text-blue-800 text-sm font-semibold px-2 py-1 rounded">
-              ${bus.busAge} Yr Old Bus
-            </span>
-          </div>
-        `;
-        busDetailsContainer.appendChild(busCard);
-      });
-    })
-    .catch(error => console.error('Error fetching bus data:', error));
-}
-
-// Call fetchBuses on page load
-document.addEventListener('DOMContentLoaded', fetchBuses);
-
-
-// Call fetchBuses on page load
-document.addEventListener('DOMContentLoaded', fetchBuses);
-
-
-    function updateFooter() {
-      const lastUpdated = document.getElementById('lastUpdated');
-      const now = new Date();
-      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-      const formattedDate = oneHourAgo.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      lastUpdated.textContent = `Last updated one hour ago (${formattedDate}).`;
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      displayBuses();
-      updateFooter();
-    });
-  </script>
+<body>
+    <h1>Available Buses</h1>
+    <div id="busDetailsContainer"></div>
 </body>
 </html>
