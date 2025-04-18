@@ -21,76 +21,117 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    document.addEventListener("DOMContentLoaded", () => {
-      const form = document.getElementById("searchForm");
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
+    async function fetchStationSuggestions() {
+      const querySnapshot = await getDocs(collection(db, "buses"));
+      const stations = new Set();
 
-        const fromInput = document.getElementById("fromStation").value.trim().toLowerCase();
-        const toInput = document.getElementById("toStation").value.trim().toLowerCase();
-        const resultContainer = document.getElementById("results");
-        resultContainer.innerHTML = "";
-
-        try {
-          const querySnapshot = await getDocs(collection(db, "buses"));
-          let found = false;
-
-          querySnapshot.forEach((doc) => {
-            const bus = doc.data();
-            if (
-              bus.from.toLowerCase() === fromInput &&
-              bus.to.toLowerCase() === toInput
-            ) {
-              found = true;
-              const busCard = document.createElement("div");
-              busCard.className = "bus-card";
-              busCard.innerHTML = `
-                <h3>${bus.depo} - ${bus.busNumber}</h3>
-                <p><strong>Route:</strong> ${bus.from} → ${bus.to} (Via ${bus.via})</p>
-                <p><strong>Starts From:</strong> ${bus.startsFrom}</p>
-                <p><strong>Fare:</strong> ₹${bus.fare}</p>
-                <p><strong>Departure:</strong> ${bus.departureTime} → <strong>Arrival:</strong> ${bus.arrivalTime}</p>
-                <p><strong>${bus.seatsLeft} Seats Left</strong></p>
-                <p><strong>Type:</strong> ${bus.type} | <strong>Age:</strong> ${bus.busAge} Yr Old</p>
-              `;
-              resultContainer.appendChild(busCard);
-            }
-          });
-
-          if (!found) {
-            resultContainer.innerHTML = "<p>No buses found for this route.</p>";
-          }
-
-        } catch (error) {
-          console.error("Error searching buses:", error);
-          resultContainer.innerHTML = "<p>Error fetching results.</p>";
-        }
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        stations.add(data.from.toLowerCase());
+        stations.add(data.to.toLowerCase());
+        stations.add(data.via.toLowerCase());
       });
-    });
+
+      return Array.from(stations);
+    }
+
+    async function searchBuses(e) {
+      e.preventDefault();
+
+      const from = document.getElementById("from").value.trim().toLowerCase();
+      const to = document.getElementById("to").value.trim().toLowerCase();
+      const typeFilter = document.getElementById("type").value;
+      const depAfter = document.getElementById("departureTime").value;
+
+      const busResults = document.getElementById("results");
+      busResults.innerHTML = "<p>Searching...</p>";
+
+      try {
+        const querySnapshot = await getDocs(collection(db, "buses"));
+        const filteredBuses = [];
+
+        querySnapshot.forEach((doc) => {
+          const bus = doc.data();
+          const route = [bus.from, bus.via, bus.to].map(x => x.toLowerCase());
+
+          const hasRoute = route.includes(from) && route.includes(to);
+          const typeMatch = !typeFilter || bus.type.toLowerCase() === typeFilter.toLowerCase();
+          const depMatch = !depAfter || bus.departureTime >= depAfter;
+
+          if (hasRoute && typeMatch && depMatch) {
+            filteredBuses.push(bus);
+          }
+        });
+
+        if (filteredBuses.length === 0) {
+          busResults.innerHTML = "<p>No matching buses found.</p>";
+        } else {
+          busResults.innerHTML = "";
+          filteredBuses.forEach(bus => {
+            const div = document.createElement("div");
+            div.className = "bus-card";
+            div.innerHTML = `
+              <h3>${bus.depo} - ${bus.busNumber}</h3>
+              <p><strong>Route:</strong> ${bus.from} → ${bus.to} (Via ${bus.via})</p>
+              <p><strong>Starts From:</strong> ${bus.startsFrom}</p>
+              <p><strong>Fare:</strong> ₹${bus.fare}</p>
+              <p><strong>Departure:</strong> ${bus.departureTime} → <strong>Arrival:</strong> ${bus.arrivalTime}</p>
+              <p><strong>${bus.seatsLeft} Seats Left</strong></p>
+              <p><strong>Type:</strong> ${bus.type} | <strong>Age:</strong> ${bus.busAge} Yr Old</p>
+            `;
+            busResults.appendChild(div);
+          });
+        }
+
+      } catch (error) {
+        console.error("Error searching buses:", error);
+        busResults.innerHTML = "<p>Something went wrong.</p>";
+      }
+    }
+
+    async function setupAutocomplete() {
+      const stations = await fetchStationSuggestions();
+      const datalist = document.getElementById("stationSuggestions");
+
+      stations.forEach(station => {
+        const option = document.createElement("option");
+        option.value = station.charAt(0).toUpperCase() + station.slice(1);
+        datalist.appendChild(option);
+      });
+    }
+
+    window.onload = () => {
+      setupAutocomplete();
+      document.getElementById("searchForm").addEventListener("submit", searchBuses);
+    };
   </script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    form { margin-bottom: 20px; }
-    input, button { padding: 10px; margin-right: 10px; width: 200px; max-width: 100%; }
-    button { background-color: #007BFF; color: white; border: none; cursor: pointer; }
-    button:hover { background-color: #0056b3; }
-    .bus-card {
-      background: #f8f8f8;
-      padding: 15px;
-      margin-bottom: 15px;
-      border-radius: 5px;
-      box-shadow: 0 0 5px #ccc;
-    }
+    form { background: #f4f4f4; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    input, select, button { padding: 10px; margin: 5px 0; width: 100%; }
+    .bus-card { background: #fff; padding: 10px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 0 5px #ccc; }
+    button { background: #007bff; color: white; border: none; cursor: pointer; }
+    button:hover { background: #0056b3; }
   </style>
 </head>
 <body>
   <h1>Search Buses</h1>
   <form id="searchForm">
-    <input type="text" id="fromStation" placeholder="From Station" required />
-    <input type="text" id="toStation" placeholder="To Station" required />
+    <input list="stationSuggestions" id="from" placeholder="From Station" required />
+    <input list="stationSuggestions" id="to" placeholder="To Station" required />
+    <select id="type">
+      <option value="">All Types</option>
+      <option value="Normal">Normal</option>
+      <option value="Premium">Premium</option>
+      <option value="AC">AC</option>
+    </select>
+    <label for="departureTime">Departure Time After:</label>
+    <input type="time" id="departureTime" />
     <button type="submit">Search</button>
   </form>
 
   <div id="results"></div>
+
+  <datalist id="stationSuggestions"></datalist>
 </body>
 </html>
