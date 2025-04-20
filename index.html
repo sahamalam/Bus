@@ -57,12 +57,28 @@
       });
     }
 
+    function getMinutesDifference(currentTime, departureTime) {
+      const [ch, cm] = currentTime.split(":").map(Number);
+      const [dh, dm] = departureTime.split(":").map(Number);
+      const current = new Date();
+      const departure = new Date();
+
+      current.setHours(ch, cm, 0, 0);
+      departure.setHours(dh, dm, 0, 0);
+
+      return (departure - current) / (1000 * 60);
+    }
+
     async function searchBuses(event) {
       event.preventDefault();
       const from = document.getElementById("from").value.trim().toLowerCase();
       const to = document.getElementById("to").value.trim().toLowerCase();
+      const eightHourFilter = document.getElementById("eightHourFilter").checked;
       const container = document.getElementById("results");
       container.innerHTML = "Searching...";
+
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
       try {
         const querySnapshot = await getDocs(collection(db, "buses"));
@@ -72,28 +88,32 @@
         querySnapshot.forEach(doc => {
           const bus = doc.data();
           if (
-            bus.from && bus.to &&
+            bus.from && bus.to && bus.departureTime &&
             bus.from.trim().toLowerCase() === from &&
             bus.to.trim().toLowerCase() === to
           ) {
-            found = true;
-            const div = document.createElement("div");
-            div.className = "bus-card";
-            div.innerHTML = `
-              <h3>${bus.depo} - ${bus.busNumber}</h3>
-              <p><strong>Route:</strong> ${bus.from} → ${bus.to} (Via ${bus.via})</p>
-              <p><strong>Starts From:</strong> ${bus.startsFrom}</p>
-              <p><strong>Fare:</strong> ₹${bus.fare}</p>
-              <p><strong>Departure:</strong> ${bus.departureTime} → <strong>Arrival:</strong> ${bus.arrivalTime}</p>
-              <p><strong>${bus.seatsLeft} Seats Left</strong></p>
-              <p><strong>Type:</strong> ${bus.type} | <strong>Age:</strong> ${bus.busAge} Yr Old</p>
-            `;
-            container.appendChild(div);
+            const minutesDiff = getMinutesDifference(currentTime, bus.departureTime);
+
+            if (!eightHourFilter || (minutesDiff >= 0 && minutesDiff <= 480)) {
+              found = true;
+              const div = document.createElement("div");
+              div.className = "bus-card";
+              div.innerHTML = `
+                <h3>${bus.depo} - ${bus.busNumber}</h3>
+                <p><strong>Route:</strong> ${bus.from} → ${bus.to} (Via ${bus.via})</p>
+                <p><strong>Starts From:</strong> ${bus.startsFrom}</p>
+                <p><strong>Fare:</strong> ₹${bus.fare}</p>
+                <p><strong>Departure:</strong> ${bus.departureTime} → <strong>Arrival:</strong> ${bus.arrivalTime}</p>
+                <p><strong>${bus.seatsLeft} Seats Left</strong></p>
+                <p><strong>Type:</strong> ${bus.type} | <strong>Age:</strong> ${bus.busAge} Yr Old</p>
+              `;
+              container.appendChild(div);
+            }
           }
         });
 
         if (!found) {
-          container.innerHTML = "<p>No buses found for this route.</p>";
+          container.innerHTML = "<p>No buses found for this route with selected options.</p>";
         }
 
       } catch (err) {
@@ -103,17 +123,25 @@
     }
 
     window.onload = async () => {
-      await loadStations(); // Load all station names
+      await loadStations();
       showSuggestions("from", "fromSuggestions");
       showSuggestions("to", "toSuggestions");
 
       document.getElementById("searchForm").addEventListener("submit", searchBuses);
     };
   </script>
+
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     input, button { padding: 10px; width: 100%; max-width: 300px; margin: 5px 0; }
-    .bus-card { background: #fff; padding: 15px; margin: 10px 0; border-radius: 6px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
+    label { display: block; margin-top: 10px; }
+    .bus-card {
+      background: #fff;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 6px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body>
@@ -124,6 +152,11 @@
 
     <input type="text" id="to" list="toSuggestions" placeholder="To Station" required />
     <datalist id="toSuggestions"></datalist>
+
+    <label>
+      <input type="checkbox" id="eightHourFilter" checked />
+      Show only buses departing within 8 hours
+    </label>
 
     <button type="submit">Search</button>
   </form>
